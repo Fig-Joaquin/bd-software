@@ -74,7 +74,8 @@ def diferencia_salario(mongodb_manager):
     collection_name = 'data_eng_salaries'
     pipeline = [
         {"$match": {"salary_currency": "USD"}},
-        {"$group": {"_id": "$experience_level", "avg_salary": {"$avg": "$salary_in_usd"}}},
+        {"$addFields": {"salary_in_usd_numeric": {"$toDouble": "$salary_in_usd"}}},
+        {"$group": {"_id": "$experience_level", "avg_salary": {"$avg": "$salary_in_usd_numeric"}}},
         {"$sort": {"avg_salary": -1}}
     ]
     result = mongodb_manager.find_documents_with_aggregate(collection_name, pipeline)
@@ -82,13 +83,17 @@ def diferencia_salario(mongodb_manager):
     if not result:
         print("No se encontraron datos.")
     for item in result:
-        print(f"Nivel: {item['_id']}, Salario Promedio: {format_currency(item['avg_salary'])} USD")
+        avg_salary = item.get('avg_salary')
+        if avg_salary is not None:
+            avg_salary = float(avg_salary)
+        print(f"Nivel: {item['_id']}, Salario Promedio: {format_currency(avg_salary)} USD")
 
 def lugares_mayor_salario(mongodb_manager):
     collection_name = 'data_eng_salaries'
     pipeline = [
         {"$match": {"salary_currency": "USD"}},
-        {"$group": {"_id": {"experience_level": "$experience_level", "location": "$employee_residence"}, "avg_salary": {"$avg": "$salary_in_usd"}}},
+        {"$addFields": {"salary_in_usd_numeric": {"$toDouble": "$salary_in_usd"}}},
+        {"$group": {"_id": {"experience_level": "$experience_level", "location": "$employee_residence"}, "avg_salary": {"$avg": "$salary_in_usd_numeric"}}},
         {"$sort": {"_id.experience_level": 1, "avg_salary": -1}}
     ]
     result = mongodb_manager.find_documents_with_aggregate(collection_name, pipeline)
@@ -97,23 +102,28 @@ def lugares_mayor_salario(mongodb_manager):
         print("No se encontraron datos.")
     for item in result:
         location = item['_id'].get('location', 'Desconocido')
-        print(f"Nivel: {item['_id']['experience_level']}, Lugar: {location}, Salario Promedio: {format_currency(item['avg_salary'])} USD")
+        avg_salary = item.get('avg_salary')
+        if avg_salary is not None:
+            avg_salary = float(avg_salary)
+        print(f"Nivel: {item['_id']['experience_level']}, Lugar: {location}, Salario Promedio: {format_currency(avg_salary)} USD")
 
 def usa_mejores_salarios(mongodb_manager):
     collection_name = 'data_eng_salaries'
     pipeline_usa = [
         {"$match": {"employee_residence": "US", "salary_currency": "USD"}},
-        {"$group": {"_id": None, "avg_salary_usa": {"$avg": "$salary_in_usd"}}}
+        {"$addFields": {"salary_in_usd_numeric": {"$toDouble": "$salary_in_usd"}}},
+        {"$group": {"_id": None, "avg_salary_usa": {"$avg": "$salary_in_usd_numeric"}}}
     ]
     salario_usa = mongodb_manager.find_documents_with_aggregate(collection_name, pipeline_usa)
-    avg_salary_usa = salario_usa[0]['avg_salary_usa'] if salario_usa else 0
+    avg_salary_usa = salario_usa[0]['avg_salary_usa'] if salario_usa and 'avg_salary_usa' in salario_usa[0] else None
 
     pipeline_global = [
         {"$match": {"salary_currency": "USD"}},
-        {"$group": {"_id": None, "avg_salary_global": {"$avg": "$salary_in_usd"}}}
+        {"$addFields": {"salary_in_usd_numeric": {"$toDouble": "$salary_in_usd"}}},
+        {"$group": {"_id": None, "avg_salary_global": {"$avg": "$salary_in_usd_numeric"}}}
     ]
     salario_global = mongodb_manager.find_documents_with_aggregate(collection_name, pipeline_global)
-    avg_salary_global = salario_global[0]['avg_salary_global'] if salario_global else 0
+    avg_salary_global = salario_global[0]['avg_salary_global'] if salario_global and 'avg_salary_global' in salario_global[0] else None
 
     print("\n¿USA es el país con mejores salarios?")
     print(f"Salario Promedio USA: {format_currency(avg_salary_usa)} USD")
@@ -123,26 +133,33 @@ def salario_promedio_global(mongodb_manager):
     collection_name = 'data_eng_salaries'
     pipeline = [
         {"$match": {"salary_currency": "USD"}},
-        {"$group": {"_id": None, "avg_salary_global": {"$avg": "$salary_in_usd"}}}
+        {"$addFields": {"salary_in_usd_numeric": {"$toDouble": "$salary_in_usd"}}},
+        {"$group": {"_id": None, "avg_salary_global": {"$avg": "$salary_in_usd_numeric"}}}
     ]
     result = mongodb_manager.find_documents_with_aggregate(collection_name, pipeline)
-    avg_salary_global = result[0]['avg_salary_global'] if result else 0
+    avg_salary_global = result[0]['avg_salary_global'] if result and 'avg_salary_global' in result[0] else None
     print(f"\nSalario Promedio Global (USD): {format_currency(avg_salary_global)} USD")
 
 def area_mayor_sueldo(mongodb_manager):
     collection_name = 'data_eng_salaries'
     pipeline = [
         {"$match": {"salary_currency": "USD"}},
-        {"$group": {"_id": "$job_title", "avg_salary": {"$avg": "$salary_in_usd"}}},
+        {"$addFields": {"salary_in_usd_numeric": {"$toDouble": "$salary_in_usd"}}},
+        {"$group": {"_id": "$job_title", "avg_salary": {"$avg": "$salary_in_usd_numeric"}}},
         {"$sort": {"avg_salary": -1}},
         {"$limit": 1}
     ]
     result = mongodb_manager.find_documents_with_aggregate(collection_name, pipeline)
     area_con_mayor_sueldo = result[0] if result else {"_id": "N/A", "avg_salary": 0}
+    avg_salary = area_con_mayor_sueldo.get('avg_salary')
+    if avg_salary is not None:
+        avg_salary = float(avg_salary)
     print("\nÁrea informática con mayor sueldo (USD):")
-    print(f"Área: {area_con_mayor_sueldo['_id']}, Salario Promedio: {format_currency(area_con_mayor_sueldo['avg_salary'])} USD")
-
+    print(f"{area_con_mayor_sueldo['_id']}")
+    print(f"Salario Promedio: {format_currency(avg_salary)} USD!")
 def format_currency(value):
+    if value is None:
+        return "N/A"
     return f"{value:,.2f}"
 
 if __name__ == "__main__":
